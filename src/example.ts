@@ -1,4 +1,4 @@
-import { HikvisionClientAxios } from "./hikvision-client";
+import { HikvisionClientAxios } from "./HikvisionConnector";
 
 async function main() {
   const client = new HikvisionClientAxios({

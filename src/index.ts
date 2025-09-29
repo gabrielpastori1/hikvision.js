@@ -1,1 +1,1 @@
-export * from "./hikvision-client";
+export * from "./HikvisionConnector";
