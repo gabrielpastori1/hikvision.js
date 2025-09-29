@@ -1,39 +1,101 @@
-const axios = require("axios");
-const crypto = require("crypto");
-const http = require("http");
-const https = require("https");
-const { XMLParser, XMLBuilder } = require("fast-xml-parser");
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import * as crypto from "crypto";
+import * as http from "http";
+import * as https from "https";
+import { XMLParser, XMLBuilder } from "fast-xml-parser";
+
+/**
+ * Interface para configuração do HikvisionConnector
+ */
+export interface HikvisionConfig {
+  /** O endereço IP ou hostname do equipamento (ex: '192.168.1.64') */
+  host: string;
+  /** O nome de usuário para autenticação */
+  username: string;
+  /** A senha em texto plano */
+  plainPassword: string;
+  /** Se o protocolo deve ser HTTPS (padrão: true) */
+  https?: boolean;
+}
+
+/**
+ * Interface para as capacidades de sessão retornadas pela Hikvision
+ */
+export interface SessionCapabilities {
+  sessionID: string;
+  challenge: string;
+  salt: string;
+  iterations: number;
+  sessionIDVersion?: number;
+  isIrreversible?: boolean;
+  isNeedSessionTag?: boolean;
+}
+
+/**
+ * Interface para os dados de autenticação da sessão
+ */
+export interface SessionAuth {
+  sessionTag: string;
+  cookies: Record<string, string>;
+  [key: string]: any;
+}
+
+/**
+ * Interface para os parâmetros do Digest Authentication
+ */
+export interface DigestParams {
+  realm: string;
+  nonce: string;
+  qop: string;
+  opaque: string;
+  [key: string]: string;
+}
 
 /**
  * Cria um hash MD5 de uma string e retorna em formato hexadecimal.
- * @param {string} data - A string para fazer o hash.
- * @returns {string} O hash MD5 em hexadecimal.
+ * @param data - A string para fazer o hash.
+ * @returns O hash MD5 em hexadecimal.
  */
-function md5Hex(data) {
+function md5Hex(data: string): string {
   return crypto.createHash("md5").update(data).digest("hex");
 }
 
 /**
  * Cria um hash SHA-256 de uma string e retorna em formato hexadecimal.
- * @param {string} data - A string para fazer o hash.
- * @returns {string} O hash SHA-256 em hexadecimal.
+ * @param data - A string para fazer o hash.
+ * @returns O hash SHA-256 em hexadecimal.
  */
-function sha256Hex(data) {
+function sha256Hex(data: string): string {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
 /**
  * Classe para gerenciar a conexão e autenticação com equipamentos Hikvision via ISAPI.
  */
-class HikvisionConnector {
+export class HikvisionConnector {
+  private readonly host: string;
+  private readonly username: string;
+  private readonly plainPassword: string;
+  private readonly https: boolean;
+  private readonly agent: http.Agent | https.Agent;
+  private readonly api: AxiosInstance;
+  private readonly xmlParser: XMLParser;
+  private readonly xmlBuilder: XMLBuilder;
+
+  private sessionID: string | null = null;
+  private sessionCap: SessionCapabilities | null = null;
+  private auth: SessionAuth | null = null;
+  private digestAuthHeader: string | null = null;
+  private loggedIn: boolean = false;
+  private securityToken: string | null = null;
+
   /**
-   * @param {object} config
-   * @param {string} config.host - O endereço IP ou hostname do equipamento (ex: '192.168.1.64').
-   * @param {string} config.username - O nome de usuário para autenticação.
-   * @param {string} config.plainPassword - A senha em texto plano.
-   * @param {boolean} config.https - Se o protocolo deve ser HTTPS.
+   * Cria uma nova instância do HikvisionConnector
+   * @param config - Configuração de conexão
    */
-  constructor({ host, username, plainPassword, https: useHttps = true }) {
+  constructor(config: HikvisionConfig) {
+    const { host, username, plainPassword, https: useHttps = true } = config;
+
     if (!host || !username || !plainPassword) {
       throw new Error("Host, username e plainPassword são obrigatórios.");
     }
@@ -49,8 +111,8 @@ class HikvisionConnector {
     // Configuração do Axios
     this.api = axios.create({
       baseURL: `http${this.https ? "s" : ""}://${this.host}`,
-      httpsAgent: this.https ? this.agent : null,
-      httpAgent: this.https ? null : this.agent,
+      httpsAgent: this.https ? this.agent : undefined,
+      httpAgent: this.https ? undefined : this.agent,
     });
 
     // Configuração do Parser XML
@@ -67,14 +129,6 @@ class HikvisionConnector {
       suppressBooleanAttributes: false,
       format: false,
     });
-
-    // Estado da autenticação
-    this.sessionID = null;
-    this.sessionCap = null; // Armazena salt, challenge, iterations
-    this.auth = null; // Armazena o resultado do login
-    this.digestAuthHeader = null; // Armazena o último header de autenticação Digest
-    this.loggedIn = false;
-    this.securityToken = null;
   }
 
   /**
@@ -84,7 +138,11 @@ class HikvisionConnector {
    * repetir i vezes: P = SHA256(P + challenge)
    * @private
    */
-  _buildPasswordHash() {
+  private _buildPasswordHash(): string {
+    if (!this.sessionCap) {
+      throw new Error("sessionCap não está disponível.");
+    }
+
     const { salt, challenge, iterations } = this.sessionCap;
     if (!salt || !challenge || !iterations) {
       throw new Error("Não foi possível obter salt, challenge ou iterations.");
@@ -102,7 +160,7 @@ class HikvisionConnector {
    * Passo 1 do login: Obtém as capacidades de sessão (salt, challenge, iterations).
    * @private
    */
-  async _getSessionCapabilities() {
+  private async _getSessionCapabilities(): Promise<void> {
     try {
       console.log("Obtendo capacidades de sessão...");
       const random = Math.floor(Math.random() * 1e8);
@@ -110,12 +168,12 @@ class HikvisionConnector {
         this.username
       )}&random=${random}`;
 
-      const response = await this.api.get(url);
-      const parsedData = this.xmlParser.parse(response.data);
+      const response: AxiosResponse<string> = await this.api.get(url);
+      const parsedData: any = this.xmlParser.parse(response.data);
 
       this.sessionCap = parsedData.SessionLoginCap;
       console.log("Capacidades de sessão obtidas com sucesso.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao obter capacidades de sessão:", error.message);
       throw new Error(
         "Falha ao obter capacidades de sessão. Verifique o usuário ou se o equipamento suporta este método de login."
@@ -127,7 +185,11 @@ class HikvisionConnector {
    * Passo 2 do login: Realiza o login com o hash da senha para obter o sessionID.
    * @private
    */
-  async _performSessionLogin() {
+  private async _performSessionLogin(): Promise<void> {
+    if (!this.sessionCap) {
+      throw new Error("sessionCap não está disponível.");
+    }
+
     try {
       console.log("Realizando login de sessão...");
       const hashedPassword = this._buildPasswordHash();
@@ -144,25 +206,25 @@ class HikvisionConnector {
         },
       });
 
-      const response = await this.api.post(
+      const response: AxiosResponse<string> = await this.api.post(
         `/ISAPI/Security/sessionLogin?timeStamp=${timeStamp}`,
         xmlBody,
         { headers: { "Content-Type": "application/xml" } }
       );
 
-      const parsedData = this.xmlParser.parse(response.data);
+      const parsedData: any = this.xmlParser.parse(response.data);
       this.sessionID = this.sessionCap.sessionID;
       this.auth = parsedData.SessionLogin;
 
       const cookies = response.headers["set-cookie"];
       if (cookies) {
-        const sessionCookie = cookies.find((cookie) =>
+        const sessionCookie = cookies.find((cookie: string) =>
           cookie.startsWith("WebSession_")
         );
         if (sessionCookie) {
           const components = sessionCookie.split(";");
           const [key, value] = components[0].split("=");
-          this.auth.cookies = { [key]: value };
+          this.auth!.cookies = { [key]: value };
         }
       }
 
@@ -172,7 +234,7 @@ class HikvisionConnector {
 
       this.loggedIn = true;
       console.log("Login realizado com sucesso. SessionID:", this.sessionID);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         "Erro ao realizar o login:",
         error.response?.data || error.message
@@ -187,35 +249,39 @@ class HikvisionConnector {
    * Realiza o processo completo de login de sessão.
    * Deve ser chamado antes de usar o método `request`.
    */
-  async login() {
+  public async login(): Promise<void> {
     await this._getSessionCapabilities();
     await this._performSessionLogin();
   }
 
   /**
    * Analisa o header 'WWW-Authenticate' para extrair os parâmetros do Digest.
-   * @param {string} authHeader - O valor do header WWW-Authenticate.
-   * @returns {object} Um objeto com os parâmetros do Digest.
+   * @param authHeader - O valor do header WWW-Authenticate.
+   * @returns Um objeto com os parâmetros do Digest.
    * @private
    */
-  _parseDigestHeader(authHeader) {
-    const digestParams = {};
+  private _parseDigestHeader(authHeader: string): DigestParams {
+    const digestParams: Record<string, string> = {};
     authHeader.replace(/(\w+)="([^"]*)"/g, (match, key, value) => {
       digestParams[key] = value;
       return "";
     });
-    return digestParams;
+    return digestParams as DigestParams;
   }
 
   /**
    * Gera o header de autorização para autenticação Digest.
-   * @param {object} digestParams - Parâmetros extraídos do header WWW-Authenticate.
-   * @param {string} method - O método HTTP da requisição (GET, PUT, etc.).
-   * @param {string} path - O caminho da URL da requisição (ex: /ISAPI/System/deviceInfo).
-   * @returns {string} O header de autorização Digest completo.
+   * @param digestParams - Parâmetros extraídos do header WWW-Authenticate.
+   * @param method - O método HTTP da requisição (GET, PUT, etc.).
+   * @param path - O caminho da URL da requisição (ex: /ISAPI/System/deviceInfo).
+   * @returns O header de autorização Digest completo.
    * @private
    */
-  _generateDigestAuthHeader(digestParams, method, path) {
+  private _generateDigestAuthHeader(
+    digestParams: DigestParams,
+    method: string,
+    path: string
+  ): string {
     const ha1 = md5Hex(
       `${this.username}:${digestParams.realm}:${this.plainPassword}`
     );
@@ -232,28 +298,27 @@ class HikvisionConnector {
 
   /**
    * Gera um token de segurança para download de arquivos.
-   * @returns {string} O token de segurança.
+   * @returns O token de segurança.
    * @private
    */
-  async _generateSecurityToken() {
-    // if (this.securityToken) return this.securityToken;
-    const response = await this.request({
+  private async _generateSecurityToken(): Promise<string> {
+    const response: any = await this.request({
       method: "get",
       url: `/ISAPI/Security/token?format=json`,
       headers: { "Content-Type": "application/json" },
     });
     this.securityToken = response.data.Token.value;
-    return this.securityToken;
+    return this.securityToken!;
   }
 
   /**
    * Baixa um arquivo da Hikvision.
-   * @param {string} url - O URL do arquivo.
-   * @returns {Promise<ArrayBuffer>} O arquivo baixado.
+   * @param url - O URL do arquivo.
+   * @returns O arquivo baixado como ArrayBuffer.
    */
-  async getFile(url) {
+  public async getFile(url: string): Promise<ArrayBuffer> {
     const securityToken = await this._generateSecurityToken();
-    const file = await this.request({
+    const file: AxiosResponse = await this.request({
       method: "get",
       url: url,
       params: { token: securityToken },
@@ -265,16 +330,20 @@ class HikvisionConnector {
   /**
    * Realiza uma requisição autenticada ao equipamento.
    * Lida automaticamente com a autenticação Digest.
-   * @param {object} config - Uma configuração de requisição do Axios (url, method, data, etc.).
-   * @returns {Promise<object>} A resposta da requisição do Axios.
+   * @param config - Uma configuração de requisição do Axios (url, method, data, etc.).
+   * @returns A resposta da requisição do Axios ou dados parseados do XML.
    */
-  async request(config) {
+  public async request(config: AxiosRequestConfig): Promise<any> {
     if (!this.loggedIn) {
       throw new Error("Não autenticado. Chame o método login() primeiro.");
     }
 
+    if (!this.auth) {
+      throw new Error("Dados de autenticação não disponíveis.");
+    }
+
     // Adiciona o cookie de sessão a todas as requisições
-    const requestConfig = {
+    const requestConfig: AxiosRequestConfig = {
       ...config,
       headers: {
         ...config.headers,
@@ -287,14 +356,15 @@ class HikvisionConnector {
 
     try {
       // Primeira tentativa
-      const response = await this.api(requestConfig);
+      const response: AxiosResponse = await this.api(requestConfig);
 
       // Se for xml, parsea e retorna
-      if (response.headers["content-type"] === "application/xml")
+      if (response.headers["content-type"] === "application/xml") {
         return this.xmlParser.parse(response.data);
+      }
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
       // Se a primeira tentativa falhar com 401, é um desafio de autenticação Digest
       if (error.response && error.response.status === 401) {
         console.log(
@@ -311,14 +381,17 @@ class HikvisionConnector {
         const digestParams = this._parseDigestHeader(authHeader);
         const digestAuthHeader = this._generateDigestAuthHeader(
           digestParams,
-          requestConfig.method.toUpperCase(),
-          requestConfig.url
+          (requestConfig.method || "GET").toUpperCase(),
+          requestConfig.url || ""
         );
 
         // Armazena o header para futuras requisições (otimização)
         this.digestAuthHeader = digestAuthHeader;
 
         // Segunda tentativa com o header de autorização
+        if (!requestConfig.headers) {
+          requestConfig.headers = {};
+        }
         requestConfig.headers["Authorization"] = this.digestAuthHeader;
 
         console.log("Repetindo requisição com header Digest...");
@@ -331,4 +404,10 @@ class HikvisionConnector {
   }
 }
 
+// Exportação padrão para compatibilidade com require()
+export default HikvisionConnector;
+
+// Compatibilidade CommonJS
 module.exports = HikvisionConnector;
+module.exports.HikvisionConnector = HikvisionConnector;
+module.exports.default = HikvisionConnector;

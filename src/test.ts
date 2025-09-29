@@ -61,7 +61,7 @@ async function main() {
     // console.log("--------------------------------\n");
     //                                    /LOCALS/pic/acsLinkCap/202509_00/29_143201_30104_0.jpeg
 
-    const logImage = logs.InfoList.find((log) => log.pictureURL);
+    const logImage = logs.InfoList.find((log: any) => log.pictureURL);
     if (!logImage) {
       console.log("Nenhuma imagem encontrada");
       return;
@@ -70,7 +70,7 @@ async function main() {
     const file = await hikvision.getFile(logImage.pictureURL);
     console.log(file);
     fs.writeFileSync("image.jpg", file);
-  } catch (error) {
+  } catch (error: any) {
     console.error("\n*** OCORREU UM ERRO ***");
     if (error.response) {
       // Erro de uma requisição HTTP (ex: 401, 404, 500)
