@@ -125,3 +125,4 @@ export declare class HikvisionConnector {
     request(config: AxiosRequestConfig): Promise<any>;
 }
 export default HikvisionConnector;
+//# sourceMappingURL=HikvisionConnector.d.ts.map

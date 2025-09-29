@@ -6,15 +6,18 @@
     "moduleResolution": "Node",
     "resolveJsonModule": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
     "rootDir": "src",
     "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "noEmitOnError": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/HikvisionConnector.js"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.js", "**/*.test.ts", "**/*.spec.ts"]
 }

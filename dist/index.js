@@ -13,3 +13,4 @@ const HikvisionConnector_3 = __importDefault(require("./HikvisionConnector"));
 module.exports = HikvisionConnector_3.default;
 module.exports.HikvisionConnector = HikvisionConnector_3.default;
 module.exports.default = HikvisionConnector_3.default;
+//# sourceMappingURL=index.js.map

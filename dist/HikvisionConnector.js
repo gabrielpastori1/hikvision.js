@@ -324,3 +324,4 @@ exports.default = HikvisionConnector;
 module.exports = HikvisionConnector;
 module.exports.HikvisionConnector = HikvisionConnector;
 module.exports.default = HikvisionConnector;
+//# sourceMappingURL=HikvisionConnector.js.map
