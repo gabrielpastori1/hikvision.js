@@ -1,0 +1,22 @@
+{
+  "name": "hikvision-isapi-client",
+  "version": "0.1.0",
+  "description": "Cliente JS/TS para ISAPI (Hikvision) com fast-xml-parser",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "ts-node src/example.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/example.js"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "fast-xml-parser": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
