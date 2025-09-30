@@ -214,7 +214,10 @@ export class HikvisionConnector {
 
       const parsedData: any = this.xmlParser.parse(response.data);
       this.sessionID = this.sessionCap.sessionID;
-      this.auth = parsedData.SessionLogin;
+      this.auth = {
+        ...parsedData.SessionLogin,
+        cookies: {},
+      };
 
       const cookies = response.headers["set-cookie"];
       if (cookies) {
@@ -346,9 +349,9 @@ export class HikvisionConnector {
     const requestConfig: AxiosRequestConfig = {
       ...config,
       headers: {
-        ...config.headers,
+        ...(config.headers || {}),
         SessionTag: this.auth.sessionTag,
-        Cookie: Object.entries(this.auth.cookies)
+        Cookie: Object.entries(this.auth.cookies || {})
           .map(([key, value]) => `${key}=${value}`)
           .join("; "),
       },
