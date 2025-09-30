@@ -17,13 +17,13 @@ Cliente JavaScript/TypeScript para comunicação com equipamentos Hikvision via 
 
 ```bash
 # npm
-npm install SEU_USUARIO/hikvision.js
+npm install gabrielpastori1/hikvision.js
 
 # yarn
-yarn add SEU_USUARIO/hikvision.js
+yarn add gabrielpastori1/hikvision.js
 
 # pnpm
-pnpm add SEU_USUARIO/hikvision.js
+pnpm add gabrielpastori1/hikvision.js
 ```
 
 ### Via npm (quando publicar)
@@ -31,6 +31,15 @@ pnpm add SEU_USUARIO/hikvision.js
 ```bash
 npm install hikvision.js
 ```
+
+## 🔧 Compatibilidade
+
+- **Node.js**: >= 8.0.0
+- **Browsers**: ES2017+ (ou com polyfills)
+- **Webpack**: Compatível com configurações padrão
+- **Vue.js**: Compatível com Vue 2 e Vue 3
+- **React**: Compatível
+- **Angular**: Compatível
 
 ## 🎯 Uso Básico
 
@@ -197,9 +206,71 @@ MIT License - veja o arquivo [LICENSE](LICENSE) para detalhes.
 
 Contribuições são bem-vindas! Por favor, abra uma issue ou pull request.
 
+## 🔧 Solução de Problemas
+
+### Erro de Webpack: "Unexpected token"
+
+Se você receber um erro como `Module parse failed: Unexpected token`, isso geralmente significa que o webpack não está configurado para processar o código ES2017+. 
+
+**Soluções:**
+
+1. **Configurar Babel** (Recomendado):
+```bash
+npm install --save-dev @babel/core @babel/preset-env babel-loader
+```
+
+2. **Configurar webpack** para usar Babel:
+```javascript
+// webpack.config.js
+module.exports = {
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        exclude: /node_modules\/(?!hikvision\.js)/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['@babel/preset-env']
+          }
+        }
+      }
+    ]
+  }
+};
+```
+
+3. **Para projetos Vue.js**, adicione no `vue.config.js`:
+```javascript
+module.exports = {
+  transpileDependencies: ['hikvision.js']
+};
+```
+
+### Erro de Módulos Node.js no Browser
+
+Se você estiver usando no browser e receber erros sobre módulos Node.js (como `crypto`, `http`), configure webpack com polyfills:
+
+```bash
+npm install --save-dev crypto-browserify stream-browserify buffer
+```
+
+```javascript
+// webpack.config.js
+module.exports = {
+  resolve: {
+    fallback: {
+      "crypto": require.resolve("crypto-browserify"),
+      "stream": require.resolve("stream-browserify"),
+      "buffer": require.resolve("buffer")
+    }
+  }
+};
+```
+
 ## 📞 Suporte
 
-Se você encontrar algum problema ou tiver dúvidas, por favor abra uma [issue](https://github.com/SEU_USUARIO/hikvision.js/issues).
+Se você encontrar algum problema ou tiver dúvidas, por favor abra uma [issue](https://github.com/gabrielpasto/hikvision.js/issues).
 
 ---
 

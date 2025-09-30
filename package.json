@@ -1,6 +1,6 @@
 {
   "name": "hikvision.js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cliente JS/TS para ISAPI (Hikvision) com autenticação de sessão e Digest",
   "type": "commonjs",
   "main": "dist/index.js",
@@ -46,7 +46,7 @@
   },
   "homepage": "https://github.com/gabrielpasto/hikvision.js#readme",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=8.0.0"
   },
   "dependencies": {
     "axios": "^1.12.2",

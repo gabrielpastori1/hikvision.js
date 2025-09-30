@@ -188,7 +188,7 @@ class HikvisionConnector {
             console.log("Login realizado com sucesso. SessionID:", this.sessionID);
         }
         catch (error) {
-            console.error("Erro ao realizar o login:", error.response?.data || error.message);
+            console.error("Erro ao realizar o login:", (error.response && error.response.data) || error.message);
             throw new Error("Falha ao realizar login. Verifique as credenciais e o processo de hash.");
         }
     }
@@ -273,16 +273,9 @@ class HikvisionConnector {
             throw new Error("Dados de autenticação não disponíveis.");
         }
         // Adiciona o cookie de sessão a todas as requisições
-        const requestConfig = {
-            ...config,
-            headers: {
-                ...config.headers,
-                SessionTag: this.auth.sessionTag,
-                Cookie: Object.entries(this.auth.cookies)
+        const requestConfig = Object.assign(Object.assign({}, config), { headers: Object.assign(Object.assign({}, config.headers), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies)
                     .map(([key, value]) => `${key}=${value}`)
-                    .join("; "),
-            },
-        };
+                    .join("; ") }) });
         try {
             // Primeira tentativa
             const response = await this.api(requestConfig);

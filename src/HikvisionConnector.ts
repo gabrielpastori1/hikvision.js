@@ -237,7 +237,7 @@ export class HikvisionConnector {
     } catch (error: any) {
       console.error(
         "Erro ao realizar o login:",
-        error.response?.data || error.message
+        (error.response && error.response.data) || error.message
       );
       throw new Error(
         "Falha ao realizar login. Verifique as credenciais e o processo de hash."

@@ -28,6 +28,10 @@ docs/
 *.md
 !README.md
 
+# Example configs
+webpack.config.example.js
+babel.config.js
+
 # CI/CD
 .github/
 .gitlab-ci.yml
