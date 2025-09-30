@@ -171,7 +171,7 @@ class HikvisionConnector {
             const response = await this.api.post(`/ISAPI/Security/sessionLogin?timeStamp=${timeStamp}`, xmlBody, { headers: { "Content-Type": "application/xml" } });
             const parsedData = this.xmlParser.parse(response.data);
             this.sessionID = this.sessionCap.sessionID;
-            this.auth = Object.assign(Object.assign({}, parsedData.SessionLogin), { cookies: {} });
+            this.auth = Object.assign(Object.assign({ sessionID: this.sessionCap.sessionID }, parsedData.SessionLogin), { cookies: {} });
             const cookies = response.headers["set-cookie"];
             if (cookies) {
                 const sessionCookie = cookies.find((cookie) => cookie.startsWith("WebSession_"));
@@ -192,13 +192,34 @@ class HikvisionConnector {
             throw new Error("Falha ao realizar login. Verifique as credenciais e o processo de hash.");
         }
     }
+    async _testLogin() {
+        try {
+            await this.request({
+                method: "get",
+                url: "/ISAPI/System/deviceInfo",
+            });
+            return true;
+        }
+        catch (error) {
+            return false;
+        }
+    }
     /**
      * Realiza o processo completo de login de sessão.
      * Deve ser chamado antes de usar o método `request`.
      */
-    async login() {
+    async login(auth) {
+        if (auth) {
+            this.sessionID = auth.sessionID;
+            this.auth = auth;
+            if (await this._testLogin())
+                return auth;
+            this.sessionID = null;
+            this.auth = null;
+        }
         await this._getSessionCapabilities();
         await this._performSessionLogin();
+        return this.auth;
     }
     /**
      * Analisa o header 'WWW-Authenticate' para extrair os parâmetros do Digest.
@@ -273,7 +294,7 @@ class HikvisionConnector {
             throw new Error("Dados de autenticação não disponíveis.");
         }
         // Adiciona o cookie de sessão a todas as requisições
-        const requestConfig = Object.assign(Object.assign({}, config || {}), { headers: Object.assign(Object.assign({}, (config.headers || {})), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies || {})
+        const requestConfig = Object.assign(Object.assign({}, (config || {})), { headers: Object.assign(Object.assign({}, (config.headers || {})), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies || {})
                     .map(([key, value]) => `${key}=${value}`)
                     .join("; ") }) });
         try {

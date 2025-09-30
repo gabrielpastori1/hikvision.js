@@ -35,6 +35,7 @@ export interface SessionCapabilities {
  * Interface para os dados de autenticação da sessão
  */
 export interface SessionAuth {
+  sessionID: string;
   sessionTag: string;
   cookies: Record<string, string>;
   [key: string]: any;
@@ -215,6 +216,7 @@ export class HikvisionConnector {
       const parsedData: any = this.xmlParser.parse(response.data);
       this.sessionID = this.sessionCap.sessionID;
       this.auth = {
+        sessionID: this.sessionCap.sessionID,
         ...parsedData.SessionLogin,
         cookies: {},
       };
@@ -248,13 +250,34 @@ export class HikvisionConnector {
     }
   }
 
+  private async _testLogin(): Promise<boolean> {
+    try {
+      await this.request({
+        method: "get",
+        url: "/ISAPI/System/deviceInfo",
+      });
+      return true;
+    } catch (error: any) {
+      return false;
+    }
+  }
+
   /**
    * Realiza o processo completo de login de sessão.
    * Deve ser chamado antes de usar o método `request`.
    */
-  public async login(): Promise<void> {
+  public async login(auth: SessionAuth): Promise<SessionAuth> {
+    if (auth) {
+      this.sessionID = auth.sessionID;
+      this.auth = auth;
+      if (await this._testLogin()) return auth;
+      this.sessionID = null;
+      this.auth = null;
+    }
+
     await this._getSessionCapabilities();
     await this._performSessionLogin();
+    return this.auth!;
   }
 
   /**
@@ -347,7 +370,7 @@ export class HikvisionConnector {
 
     // Adiciona o cookie de sessão a todas as requisições
     const requestConfig: AxiosRequestConfig = {
-      ...config || {},
+      ...(config || {}),
       headers: {
         ...(config.headers || {}),
         SessionTag: this.auth.sessionTag,

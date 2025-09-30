@@ -28,6 +28,7 @@ export interface SessionCapabilities {
  * Interface para os dados de autenticação da sessão
  */
 export interface SessionAuth {
+    sessionID: string;
     sessionTag: string;
     cookies: Record<string, string>;
     [key: string]: any;
@@ -83,11 +84,12 @@ export declare class HikvisionConnector {
      * @private
      */
     private _performSessionLogin;
+    private _testLogin;
     /**
      * Realiza o processo completo de login de sessão.
      * Deve ser chamado antes de usar o método `request`.
      */
-    login(): Promise<void>;
+    login(auth: SessionAuth): Promise<SessionAuth>;
     /**
      * Analisa o header 'WWW-Authenticate' para extrair os parâmetros do Digest.
      * @param authHeader - O valor do header WWW-Authenticate.
