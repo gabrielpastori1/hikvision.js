@@ -347,7 +347,7 @@ export class HikvisionConnector {
 
     // Adiciona o cookie de sessão a todas as requisições
     const requestConfig: AxiosRequestConfig = {
-      ...config,
+      ...config || {},
       headers: {
         ...(config.headers || {}),
         SessionTag: this.auth.sessionTag,

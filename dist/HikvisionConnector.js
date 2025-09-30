@@ -171,7 +171,7 @@ class HikvisionConnector {
             const response = await this.api.post(`/ISAPI/Security/sessionLogin?timeStamp=${timeStamp}`, xmlBody, { headers: { "Content-Type": "application/xml" } });
             const parsedData = this.xmlParser.parse(response.data);
             this.sessionID = this.sessionCap.sessionID;
-            this.auth = parsedData.SessionLogin;
+            this.auth = Object.assign(Object.assign({}, parsedData.SessionLogin), { cookies: {} });
             const cookies = response.headers["set-cookie"];
             if (cookies) {
                 const sessionCookie = cookies.find((cookie) => cookie.startsWith("WebSession_"));
@@ -273,7 +273,7 @@ class HikvisionConnector {
             throw new Error("Dados de autenticação não disponíveis.");
         }
         // Adiciona o cookie de sessão a todas as requisições
-        const requestConfig = Object.assign(Object.assign({}, config), { headers: Object.assign(Object.assign({}, config.headers), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies)
+        const requestConfig = Object.assign(Object.assign({}, config || {}), { headers: Object.assign(Object.assign({}, (config.headers || {})), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies || {})
                     .map(([key, value]) => `${key}=${value}`)
                     .join("; ") }) });
         try {
