@@ -270,13 +270,16 @@ export class HikvisionConnector {
     if (auth) {
       this.sessionID = auth.sessionID;
       this.auth = auth;
+      this.loggedIn = true;
       if (await this._testLogin()) return auth;
       this.sessionID = null;
       this.auth = null;
+      this.loggedIn = false;
     }
 
     await this._getSessionCapabilities();
     await this._performSessionLogin();
+    
     return this.auth!;
   }
 
