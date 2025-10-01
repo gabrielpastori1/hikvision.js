@@ -16,6 +16,10 @@ export interface HikvisionConfig {
   plainPassword: string;
   /** Se o protocolo deve ser HTTPS (padrão: true) */
   https?: boolean;
+  /** Desabilita o uso de cookies de sessão (padrão: false) */
+  disableSessionCookie?: boolean;
+  /** Número máximo de tentativas de requisição (padrão: 3) */
+  maxRetries?: number;
 }
 
 /**
@@ -78,6 +82,8 @@ export class HikvisionConnector {
   private readonly username: string;
   private readonly plainPassword: string;
   private readonly https: boolean;
+  private readonly disableSessionCookie: boolean;
+  private readonly maxRetries: number;
   private readonly agent: http.Agent | https.Agent;
   private readonly api: AxiosInstance;
   private readonly xmlParser: XMLParser;
@@ -95,7 +101,14 @@ export class HikvisionConnector {
    * @param config - Configuração de conexão
    */
   constructor(config: HikvisionConfig) {
-    const { host, username, plainPassword, https: useHttps = true } = config;
+    const {
+      host,
+      username,
+      plainPassword,
+      https: useHttps = true,
+      disableSessionCookie = false,
+      maxRetries = 3,
+    } = config;
 
     if (!host || !username || !plainPassword) {
       throw new Error("Host, username e plainPassword são obrigatórios.");
@@ -105,6 +118,8 @@ export class HikvisionConnector {
     this.username = username;
     this.plainPassword = plainPassword;
     this.https = useHttps;
+    this.disableSessionCookie = disableSessionCookie;
+    this.maxRetries = maxRetries;
     this.agent = this.https
       ? new https.Agent({ rejectUnauthorized: false })
       : new http.Agent({});
@@ -279,7 +294,7 @@ export class HikvisionConnector {
 
     await this._getSessionCapabilities();
     await this._performSessionLogin();
-    
+
     return this.auth!;
   }
 
@@ -362,7 +377,10 @@ export class HikvisionConnector {
    * @param config - Uma configuração de requisição do Axios (url, method, data, etc.).
    * @returns A resposta da requisição do Axios ou dados parseados do XML.
    */
-  public async request(config: AxiosRequestConfig): Promise<any> {
+  public async request(
+    config: AxiosRequestConfig,
+    retryCount = 0
+  ): Promise<any> {
     if (!this.loggedIn) {
       throw new Error("Não autenticado. Chame o método login() primeiro.");
     }
@@ -371,15 +389,19 @@ export class HikvisionConnector {
       throw new Error("Dados de autenticação não disponíveis.");
     }
 
+    const cookies = this.disableSessionCookie
+      ? undefined
+      : Object.entries(this.auth.cookies || {}).map(
+          ([key, value]) => `${key}=${value}`
+        );
+
     // Adiciona o cookie de sessão a todas as requisições
     const requestConfig: AxiosRequestConfig = {
       ...(config || {}),
       headers: {
         ...(config.headers || {}),
         SessionTag: this.auth.sessionTag,
-        Cookie: Object.entries(this.auth.cookies || {})
-          .map(([key, value]) => `${key}=${value}`)
-          .join("; "),
+        Cookie: cookies,
       },
     };
 
@@ -394,39 +416,10 @@ export class HikvisionConnector {
 
       return response;
     } catch (error: any) {
-      // Se a primeira tentativa falhar com 401, é um desafio de autenticação Digest
-      if (error.response && error.response.status === 401) {
-        console.log(
-          "Recebido desafio de autenticação Digest. Gerando header..."
-        );
-
-        const authHeader = error.response.headers["www-authenticate"];
-        if (!authHeader || !authHeader.toLowerCase().startsWith("digest")) {
-          throw new Error(
-            "Autenticação falhou, mas não foi um desafio Digest válido."
-          );
-        }
-
-        const digestParams = this._parseDigestHeader(authHeader);
-        const digestAuthHeader = this._generateDigestAuthHeader(
-          digestParams,
-          (requestConfig.method || "GET").toUpperCase(),
-          requestConfig.url || ""
-        );
-
-        // Armazena o header para futuras requisições (otimização)
-        this.digestAuthHeader = digestAuthHeader;
-
-        // Segunda tentativa com o header de autorização
-        if (!requestConfig.headers) {
-          requestConfig.headers = {};
-        }
-        requestConfig.headers["Authorization"] = this.digestAuthHeader;
-
-        console.log("Repetindo requisição com header Digest...");
-        return await this.api(requestConfig);
+      if (this.maxRetries > (retryCount || 0)) {
+        await this.login(this.auth!);
+        return await this.request(config, retryCount + 1);
       }
-
       // Se for outro erro, apenas o relança
       throw error;
     }

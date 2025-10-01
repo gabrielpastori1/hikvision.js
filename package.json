@@ -1,6 +1,6 @@
 {
   "name": "hikvision.js",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Cliente JS/TS para ISAPI (Hikvision) com autenticação de sessão e Digest",
   "type": "commonjs",
   "main": "dist/index.js",

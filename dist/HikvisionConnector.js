@@ -73,7 +73,7 @@ class HikvisionConnector {
         this.digestAuthHeader = null;
         this.loggedIn = false;
         this.securityToken = null;
-        const { host, username, plainPassword, https: useHttps = true } = config;
+        const { host, username, plainPassword, https: useHttps = true, disableSessionCookie = false, maxRetries = 3, } = config;
         if (!host || !username || !plainPassword) {
             throw new Error("Host, username e plainPassword são obrigatórios.");
         }
@@ -81,6 +81,8 @@ class HikvisionConnector {
         this.username = username;
         this.plainPassword = plainPassword;
         this.https = useHttps;
+        this.disableSessionCookie = disableSessionCookie;
+        this.maxRetries = maxRetries;
         this.agent = this.https
             ? new https.Agent({ rejectUnauthorized: false })
             : new http.Agent({});
@@ -288,17 +290,18 @@ class HikvisionConnector {
      * @param config - Uma configuração de requisição do Axios (url, method, data, etc.).
      * @returns A resposta da requisição do Axios ou dados parseados do XML.
      */
-    async request(config) {
+    async request(config, retryCount = 0) {
         if (!this.loggedIn) {
             throw new Error("Não autenticado. Chame o método login() primeiro.");
         }
         if (!this.auth) {
             throw new Error("Dados de autenticação não disponíveis.");
         }
+        const cookies = this.disableSessionCookie
+            ? undefined
+            : Object.entries(this.auth.cookies || {}).map(([key, value]) => `${key}=${value}`);
         // Adiciona o cookie de sessão a todas as requisições
-        const requestConfig = Object.assign(Object.assign({}, (config || {})), { headers: Object.assign(Object.assign({}, (config.headers || {})), { SessionTag: this.auth.sessionTag, Cookie: Object.entries(this.auth.cookies || {})
-                    .map(([key, value]) => `${key}=${value}`)
-                    .join("; ") }) });
+        const requestConfig = Object.assign(Object.assign({}, (config || {})), { headers: Object.assign(Object.assign({}, (config.headers || {})), { SessionTag: this.auth.sessionTag, Cookie: cookies }) });
         try {
             // Primeira tentativa
             const response = await this.api(requestConfig);
@@ -309,24 +312,9 @@ class HikvisionConnector {
             return response;
         }
         catch (error) {
-            // Se a primeira tentativa falhar com 401, é um desafio de autenticação Digest
-            if (error.response && error.response.status === 401) {
-                console.log("Recebido desafio de autenticação Digest. Gerando header...");
-                const authHeader = error.response.headers["www-authenticate"];
-                if (!authHeader || !authHeader.toLowerCase().startsWith("digest")) {
-                    throw new Error("Autenticação falhou, mas não foi um desafio Digest válido.");
-                }
-                const digestParams = this._parseDigestHeader(authHeader);
-                const digestAuthHeader = this._generateDigestAuthHeader(digestParams, (requestConfig.method || "GET").toUpperCase(), requestConfig.url || "");
-                // Armazena o header para futuras requisições (otimização)
-                this.digestAuthHeader = digestAuthHeader;
-                // Segunda tentativa com o header de autorização
-                if (!requestConfig.headers) {
-                    requestConfig.headers = {};
-                }
-                requestConfig.headers["Authorization"] = this.digestAuthHeader;
-                console.log("Repetindo requisição com header Digest...");
-                return await this.api(requestConfig);
+            if (this.maxRetries > (retryCount || 0)) {
+                await this.login(this.auth);
+                return await this.request(config, retryCount + 1);
             }
             // Se for outro erro, apenas o relança
             throw error;

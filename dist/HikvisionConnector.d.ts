@@ -11,6 +11,10 @@ export interface HikvisionConfig {
     plainPassword: string;
     /** Se o protocolo deve ser HTTPS (padrão: true) */
     https?: boolean;
+    /** Desabilita o uso de cookies de sessão (padrão: false) */
+    disableSessionCookie?: boolean;
+    /** Número máximo de tentativas de requisição (padrão: 3) */
+    maxRetries?: number;
 }
 /**
  * Interface para as capacidades de sessão retornadas pela Hikvision
@@ -51,6 +55,8 @@ export declare class HikvisionConnector {
     private readonly username;
     private readonly plainPassword;
     private readonly https;
+    private readonly disableSessionCookie;
+    private readonly maxRetries;
     private readonly agent;
     private readonly api;
     private readonly xmlParser;
@@ -124,7 +130,7 @@ export declare class HikvisionConnector {
      * @param config - Uma configuração de requisição do Axios (url, method, data, etc.).
      * @returns A resposta da requisição do Axios ou dados parseados do XML.
      */
-    request(config: AxiosRequestConfig): Promise<any>;
+    request(config: AxiosRequestConfig, retryCount?: number): Promise<any>;
 }
 export default HikvisionConnector;
 //# sourceMappingURL=HikvisionConnector.d.ts.map
