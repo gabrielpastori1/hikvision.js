@@ -136,7 +136,9 @@ class HikvisionConnector {
     async _getSessionCapabilities() {
         try {
             console.log("Obtendo capacidades de sessão...");
-            const random = Math.floor(Math.random() * 1e8);
+            const random = Math.floor(Math.random() * 100000000)
+                .toString()
+                .padStart(8, "0");
             const url = `/ISAPI/Security/sessionLogin/capabilities?username=${encodeURIComponent(this.username)}&random=${random}`;
             const response = await this.api.get(url);
             const parsedData = this.xmlParser.parse(response.data);
@@ -226,36 +228,6 @@ class HikvisionConnector {
         return this.auth;
     }
     /**
-     * Analisa o header 'WWW-Authenticate' para extrair os parâmetros do Digest.
-     * @param authHeader - O valor do header WWW-Authenticate.
-     * @returns Um objeto com os parâmetros do Digest.
-     * @private
-     */
-    _parseDigestHeader(authHeader) {
-        const digestParams = {};
-        authHeader.replace(/(\w+)="([^"]*)"/g, (match, key, value) => {
-            digestParams[key] = value;
-            return "";
-        });
-        return digestParams;
-    }
-    /**
-     * Gera o header de autorização para autenticação Digest.
-     * @param digestParams - Parâmetros extraídos do header WWW-Authenticate.
-     * @param method - O método HTTP da requisição (GET, PUT, etc.).
-     * @param path - O caminho da URL da requisição (ex: /ISAPI/System/deviceInfo).
-     * @returns O header de autorização Digest completo.
-     * @private
-     */
-    _generateDigestAuthHeader(digestParams, method, path) {
-        const ha1 = md5Hex(`${this.username}:${digestParams.realm}:${this.plainPassword}`);
-        const ha2 = md5Hex(`${method}:${path}`);
-        const cnonce = crypto.randomBytes(8).toString("hex");
-        const nc = "00000001";
-        const response = md5Hex(`${ha1}:${digestParams.nonce}:${nc}:${cnonce}:${digestParams.qop}:${ha2}`);
-        return `Digest username="${this.username}", realm="${digestParams.realm}", nonce="${digestParams.nonce}", uri="${path}", qop=${digestParams.qop}, nc=${nc}, cnonce="${cnonce}", response="${response}", opaque="${digestParams.opaque}"`;
-    }
-    /**
      * Gera um token de segurança para download de arquivos.
      * @returns O token de segurança.
      * @private
@@ -312,9 +284,12 @@ class HikvisionConnector {
             return response;
         }
         catch (error) {
-            if (this.maxRetries > (retryCount || 0)) {
-                await this.login(this.auth);
-                return await this.request(config, retryCount + 1);
+            if (error.response.status === 401) {
+                console.log("Login expirado, re tentando (retryCount:", retryCount, ")");
+                if (this.maxRetries > (retryCount || 0)) {
+                    await this.login();
+                    return await this.request(config, retryCount + 1);
+                }
             }
             // Se for outro erro, apenas o relança
             throw error;

@@ -95,23 +95,7 @@ export declare class HikvisionConnector {
      * Realiza o processo completo de login de sessão.
      * Deve ser chamado antes de usar o método `request`.
      */
-    login(auth: SessionAuth): Promise<SessionAuth>;
-    /**
-     * Analisa o header 'WWW-Authenticate' para extrair os parâmetros do Digest.
-     * @param authHeader - O valor do header WWW-Authenticate.
-     * @returns Um objeto com os parâmetros do Digest.
-     * @private
-     */
-    private _parseDigestHeader;
-    /**
-     * Gera o header de autorização para autenticação Digest.
-     * @param digestParams - Parâmetros extraídos do header WWW-Authenticate.
-     * @param method - O método HTTP da requisição (GET, PUT, etc.).
-     * @param path - O caminho da URL da requisição (ex: /ISAPI/System/deviceInfo).
-     * @returns O header de autorização Digest completo.
-     * @private
-     */
-    private _generateDigestAuthHeader;
+    login(auth?: SessionAuth): Promise<SessionAuth>;
     /**
      * Gera um token de segurança para download de arquivos.
      * @returns O token de segurança.
